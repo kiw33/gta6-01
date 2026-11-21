@@ -2,7 +2,7 @@
 // Copies game/ and screenshots/ from this repository into the output
 // directory and writes /output/dossier.json with the kit's buildDossier.
 // Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output.
-import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -11,7 +11,14 @@ const repoRoot = dirname(fileURLToPath(import.meta.url));
 const outDir = process.env.MAKEFUN_OUTPUT_DIR || '/output';
 
 // A clean output every run: both grader runs must write the same bytes.
-rmSync(outDir, { recursive: true, force: true });
+// NEVER remove outDir itself: in the grader it is a mounted volume, and
+// removing a mount point fails with EBUSY ("Device or resource busy"),
+// which aborts the run with exit 1. Instead, make sure it exists and
+// remove only its contents.
+mkdirSync(outDir, { recursive: true });
+for (const entry of readdirSync(outDir)) {
+  rmSync(join(outDir, entry), { recursive: true, force: true });
+}
 mkdirSync(join(outDir, 'game'), { recursive: true });
 mkdirSync(join(outDir, 'screenshots'), { recursive: true });
 
