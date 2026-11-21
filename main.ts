@@ -2,7 +2,7 @@
 // Copies game/ and screenshots/ from this repository into the output
 // directory and writes /output/dossier.json with the kit's buildDossier.
 // Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output.
-import { cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -15,9 +15,29 @@ const outDir = process.env.MAKEFUN_OUTPUT_DIR || '/output';
 // removing a mount point fails with EBUSY ("Device or resource busy"),
 // which aborts the run with exit 1. Instead, make sure it exists and
 // remove only its contents.
+// A leftover from a previous run can be read-only (a 555 directory, a 444
+// file) because cpSync preserves source modes; rmSync then fails with EACCES.
+// Make it writable first, then remove it. Symlinks are removed as-is.
+function removeEntry(target: string): void {
+  const stat = lstatSync(target);
+  if (stat.isSymbolicLink()) {
+    rmSync(target, { force: true });
+    return;
+  }
+  if (stat.isDirectory()) {
+    if ((stat.mode & 0o200) === 0) chmodSync(target, 0o755);
+    for (const entry of readdirSync(target)) {
+      removeEntry(join(target, entry));
+    }
+    rmSync(target, { recursive: true, force: true });
+  } else {
+    if ((stat.mode & 0o200) === 0) chmodSync(target, 0o644);
+    rmSync(target, { force: true });
+  }
+}
 mkdirSync(outDir, { recursive: true });
 for (const entry of readdirSync(outDir)) {
-  rmSync(join(outDir, entry), { recursive: true, force: true });
+  removeEntry(join(outDir, entry));
 }
 mkdirSync(join(outDir, 'game'), { recursive: true });
 mkdirSync(join(outDir, 'screenshots'), { recursive: true });
