@@ -2,7 +2,7 @@
 // Copies game/ and screenshots/ from this repository into the output
 // directory and writes /output/dossier.json with the kit's buildDossier.
 // Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output.
-import { chmodSync, cpSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -43,7 +43,12 @@ mkdirSync(join(outDir, 'game'), { recursive: true });
 mkdirSync(join(outDir, 'screenshots'), { recursive: true });
 
 cpSync(join(repoRoot, 'game'), join(outDir, 'game'), { recursive: true });
-cpSync(join(repoRoot, 'screenshots'), join(outDir, 'screenshots'), { recursive: true });
+// Harden against a repo tree without screenshots/: cpSync on a missing
+// source throws an opaque ENOENT. Skip the copy instead; buildDossier
+// then reports the missing images clearly via DossierError.
+if (existsSync(join(repoRoot, 'screenshots'))) {
+  cpSync(join(repoRoot, 'screenshots'), join(outDir, 'screenshots'), { recursive: true });
+}
 
 writeFileSync(
   join(outDir, 'dossier.json'),
